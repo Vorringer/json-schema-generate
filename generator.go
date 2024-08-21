@@ -123,7 +123,7 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 					return rv, nil
 				}
 			default:
-				rv, err := getPrimitiveTypeName(schemaType, "", false)
+				rv, err := getPrimitiveTypeName(schemaType, "", true)
 				if err != nil {
 					return "", err
 				}
