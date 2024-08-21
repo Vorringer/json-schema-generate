@@ -8,6 +8,21 @@ import (
 	"strings"
 )
 
+func ConvertJsonSchema2Struct(schema string, pack string) (string, error) {
+	s, err := Parse(schema, nil)
+	if err != nil {
+		return "", err
+	}
+	g := New(s)
+	err = g.CreateTypes()
+	if err != nil {
+		return "", err
+	}
+	var result bytes.Buffer
+	Output(&result, g, pack)
+	return result.String(), nil
+}
+
 func getOrderedFieldNames(m map[string]Field) []string {
 	keys := make([]string, len(m))
 	idx := 0
