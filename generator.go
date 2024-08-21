@@ -297,7 +297,7 @@ func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name
 	case "boolean":
 		result = "bool"
 	case "integer":
-		result = "int"
+		result = "int64"
 	case "number":
 		result = "float64"
 	case "string":

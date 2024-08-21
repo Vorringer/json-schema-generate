@@ -697,7 +697,7 @@ func TestTypeAliases(t *testing.T) {
 			aliases: 1,
 		},
 		{
-			gotype:  "int",
+			gotype:  "int64",
 			input:   &Schema{TypeValue: "integer"},
 			structs: 0,
 			aliases: 1,
