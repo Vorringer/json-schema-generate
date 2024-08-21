@@ -39,7 +39,7 @@ func (g *Generator) CreateTypes() (err error) {
 	// extract the types
 	for _, schema := range g.schemas {
 		name := g.getSchemaName("", schema)
-		rootType, err := g.processSchema(name, schema)
+		rootType, err := g.processSchema(name, schema, true)
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func (g *Generator) CreateTypes() (err error) {
 // process a block of definitions
 func (g *Generator) processDefinitions(schema *Schema) error {
 	for key, subSchema := range schema.Definitions {
-		if _, err := g.processSchema(getGolangName(key), subSchema); err != nil {
+		if _, err := g.processSchema(getGolangName(key), subSchema, true); err != nil {
 			return err
 		}
 	}
@@ -81,7 +81,7 @@ func (g *Generator) processReference(schema *Schema) (string, error) {
 	if refSchema.GeneratedType == "" {
 		// reference is not resolved yet. Do that now.
 		refSchemaName := g.getSchemaName("", refSchema)
-		typeName, err := g.processSchema(refSchemaName, refSchema)
+		typeName, err := g.processSchema(refSchemaName, refSchema, true)
 		if err != nil {
 			return "", err
 		}
@@ -91,7 +91,7 @@ func (g *Generator) processReference(schema *Schema) (string, error) {
 }
 
 // returns the type refered to by schema after resolving all dependencies
-func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string, err error) {
+func (g *Generator) processSchema(schemaName string, schema *Schema, pointer bool) (typ string, err error) {
 	if len(schema.Definitions) > 0 {
 		g.processDefinitions(schema)
 	}
@@ -123,7 +123,7 @@ func (g *Generator) processSchema(schemaName string, schema *Schema) (typ string
 					return rv, nil
 				}
 			default:
-				rv, err := getPrimitiveTypeName(schemaType, "", true)
+				rv, err := getTypeName(schemaType, "", pointer)
 				if err != nil {
 					return "", err
 				}
@@ -146,11 +146,11 @@ func (g *Generator) processArray(name string, schema *Schema) (typeStr string, e
 	if schema.Items != nil {
 		// subType: fallback name in case this array contains inline object without a title
 		subName := g.getSchemaName(name+"Items", schema.Items)
-		subTyp, err := g.processSchema(subName, schema.Items)
+		subTyp, err := g.processSchema(subName, schema.Items, true)
 		if err != nil {
 			return "", err
 		}
-		finalType, err := getPrimitiveTypeName("array", subTyp, true)
+		finalType, err := getTypeName("array", subTyp, false)
 		if err != nil {
 			return "", err
 		}
@@ -187,7 +187,7 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 		fieldName := getGolangName(propKey)
 		// calculate sub-schema name here, may not actually be used depending on type of schema!
 		subSchemaName := g.getSchemaName(fieldName, prop)
-		fieldType, err := g.processSchema(subSchemaName, prop)
+		fieldType, err := g.processSchema(subSchemaName, prop, true)
 		if err != nil {
 			return "", err
 		}
@@ -207,7 +207,7 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.AdditionalPropertiesBool == nil {
 		ap := (*Schema)(schema.AdditionalProperties)
 		apName := g.getSchemaName("", ap)
-		subTyp, err := g.processSchema(apName, ap)
+		subTyp, err := g.processSchema(apName, ap, false)
 		if err != nil {
 			return "", err
 		}
@@ -260,7 +260,7 @@ func (g *Generator) processObject(name string, schema *Schema) (typ string, err 
 	}
 	g.Structs[strct.Name] = strct
 	// objects are always a pointer
-	return getPrimitiveTypeName("object", name, true)
+	return getTypeName("object", name, true)
 }
 
 func contains(s []string, e string) bool {
@@ -272,47 +272,44 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name string, err error) {
+func getTypeName(schemaType string, subType string, pointer bool) (name string, err error) {
 	switch schemaType {
 	case "array":
 		if subType == "" {
 			return "error_creating_array", errors.New("can't create an array of an empty subtype")
 		}
 		return "[]" + subType, nil
-	case "boolean":
-		if pointer {
-			return "*bool", nil
-		}
-		return "bool", nil
-	case "integer":
-		if pointer {
-			return "*int", nil
-		}
-		return "int", nil
-	case "number":
-		if pointer {
-			return "*float64", nil
-		}
-		return "float64", nil
 	case "null":
 		return "nil", nil
 	case "object":
 		if subType == "" {
 			return "error_creating_object", errors.New("can't create an object of an empty subtype")
 		}
-		if pointer {
-			return "*" + subType, nil
-		}
-		return subType, nil
-	case "string":
-		if pointer {
-			return "*string", nil
-		}
-		return "string", nil
+		return "*" + subType, nil
+	default:
+		return getPrimitiveTypeName(schemaType, subType, pointer)
 	}
+}
 
-	return "undefined", fmt.Errorf("failed to get a primitive type for schemaType %s and subtype %s",
-		schemaType, subType)
+func getPrimitiveTypeName(schemaType string, subType string, pointer bool) (name string, err error) {
+	result := "undefined"
+	switch schemaType {
+	case "boolean":
+		result = "bool"
+	case "integer":
+		result = "int"
+	case "number":
+		result = "float64"
+	case "string":
+		result = "string"
+	default:
+		return result, fmt.Errorf("failed to get a primitive type for schemaType %s and subtype %s",
+			schemaType, subType)
+	}
+	if pointer {
+		return "*" + result, nil
+	}
+	return result, nil
 }
 
 // return a name for this (sub-)schema.
